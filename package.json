@@ -33,6 +33,7 @@
       "!node_modules/.cache/**",
       "!**/*.map"
     ],
+    "publish": null,
     "linux": {
       "target": ["AppImage", "deb"],
       "category": "Utility"
