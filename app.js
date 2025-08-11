@@ -13,8 +13,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors'
 }).addTo(map);
 
+// Track currently selected marker
+let selectedMarker = null;
+
 // Geocode cache
 const geocodeCache = {};
+
+// Additional cache for address-level geocoding
+const addressGeocodeCache = {};
 
 // Overpass API cache
 const houseNumberCache = {};
@@ -31,6 +37,21 @@ async function geocodeStreet(street, municipality) {
   if (data && data.length > 0) {
     const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
     geocodeCache[key] = coords;
+    return coords;
+  }
+  return null;
+}
+
+// Geocode specific address (street + house number) using Nominatim
+async function geocodeAddress(street, number, municipality) {
+  const key = `${number} ${street},${municipality}`;
+  if (addressGeocodeCache[key]) return addressGeocodeCache[key];
+  const url = `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(`${number} ${street}`)}&city=${encodeURIComponent(municipality)}&format=json&limit=1`;
+  const response = await fetch(url, { headers: { 'Accept-Language': 'en' }, method: 'GET' });
+  const data = await response.json();
+  if (data && data.length > 0) {
+    const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+    addressGeocodeCache[key] = coords;
     return coords;
   }
   return null;
@@ -245,8 +266,16 @@ async function loadStreets() {
         span.addEventListener('click', async (e) => {
           e.stopPropagation();
           await showNoteDropdown(street, number, span);
-          const coords = await geocodeStreet(street.name, street.municipality);
+          // Try exact address geocoding first; fall back to street center
+          let coords = await geocodeAddress(street.name, number, street.municipality);
+          if (!coords) {
+            coords = await geocodeStreet(street.name, street.municipality);
+          }
           if (coords && map) {
+            if (selectedMarker) {
+              map.removeLayer(selectedMarker);
+            }
+            selectedMarker = L.marker(coords).addTo(map).bindPopup(`${street.name} ${number}`).openPopup();
             map.setView(coords, 18);
           }
         });
@@ -333,5 +362,57 @@ async function loadStreets() {
     container.appendChild(muniBlock);
   });
 }
+
+// Hook up add street form
+(function bindAddStreetForm() {
+  const form = document.getElementById('add-street-form');
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('street-name').value.trim();
+    const municipality = document.getElementById('street-municipality').value.trim();
+    const startStr = document.getElementById('street-start').value;
+    const endStr = document.getElementById('street-end').value;
+    const interval = document.getElementById('street-interval').value;
+
+    const start = startStr === '' ? null : Number(startStr);
+    const end = endStr === '' ? null : Number(endStr);
+
+    try {
+      await window.api.addStreet({ name, municipality, start, end, interval });
+      form.reset();
+      await loadStreets();
+    } catch (err) {
+      alert(err.message || 'Failed to add street');
+    }
+  });
+})();
+
+// Export / Import buttons
+(function bindExportImport() {
+  const exportBtn = document.getElementById('export-db');
+  const importBtn = document.getElementById('import-db');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', async () => {
+      const res = await window.api.exportDb();
+      if (res && res.ok) {
+        alert('Exported to: ' + res.filePath);
+      }
+    });
+  }
+  if (importBtn) {
+    importBtn.addEventListener('click', async () => {
+      try {
+        const res = await window.api.importDb();
+        if (res && res.ok) {
+          await loadStreets();
+          alert('Import completed');
+        }
+      } catch (e) {
+        alert('Import failed: ' + (e.message || 'Unknown error'));
+      }
+    });
+  }
+})();
 
 loadStreets();

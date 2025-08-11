@@ -11,6 +11,22 @@
   <div id="app">
     <div id="sidebar">
       <h1>Streets</h1>
+      <div class="db-actions">
+        <button id="export-db">Export DB</button>
+        <button id="import-db">Import DB</button>
+      </div>
+      <form id="add-street-form" class="add-street-form">
+        <input type="text" id="street-name" placeholder="Street name" required />
+        <input type="text" id="street-municipality" placeholder="Municipality" required />
+        <input type="number" id="street-start" placeholder="Start (optional)" />
+        <input type="number" id="street-end" placeholder="End (optional)" />
+        <select id="street-interval">
+          <option value="all">All</option>
+          <option value="even">Even</option>
+          <option value="odd">Odd</option>
+        </select>
+        <button type="submit">Add Street</button>
+      </form>
       <div id="street-list"></div>
     </div>
     <div id="main">

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const db = require('./db');
 
@@ -27,6 +27,21 @@ ipcMain.handle('db:seedStreets', async (_evt, streets) => {
   return true;
 });
 
+ipcMain.handle('db:addStreet', async (_evt, street) => {
+  const normalized = {
+    name: String(street.name || '').trim(),
+    municipality: String(street.municipality || '').trim(),
+    start: street.start === '' || street.start === undefined || street.start === null ? null : Number(street.start),
+    end: street.end === '' || street.end === undefined || street.end === null ? null : Number(street.end),
+    interval: street.interval === 'even' || street.interval === 'odd' ? street.interval : 'all',
+  };
+  if (!normalized.name || !normalized.municipality) {
+    throw new Error('Street name and municipality are required');
+  }
+  const id = db.upsertStreet(normalized);
+  return { id };
+});
+
 ipcMain.handle('db:listStreetsGrouped', async () => {
   return db.listMunicipalitiesWithStreets();
 });
@@ -53,6 +68,36 @@ ipcMain.handle('db:addNote', async (_evt, streetId, number, text) => {
 ipcMain.handle('db:deleteNote', async (_evt, noteId) => {
   db.deleteNote(noteId);
   return true;
+});
+
+// IPC: Export/Import
+ipcMain.handle('db:export', async (evt) => {
+  const win = BrowserWindow.fromWebContents(evt.sender);
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Export database',
+    defaultPath: 'leafleter-export.json',
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  });
+  if (canceled || !filePath) return { ok: false };
+  const raw = db.getRawDb();
+  const fs = require('fs');
+  fs.writeFileSync(filePath, JSON.stringify(raw, null, 2), 'utf8');
+  return { ok: true, filePath };
+});
+
+ipcMain.handle('db:import', async (evt) => {
+  const win = BrowserWindow.fromWebContents(evt.sender);
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Import database',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile']
+  });
+  if (canceled || !filePaths || filePaths.length === 0) return { ok: false };
+  const fs = require('fs');
+  const content = fs.readFileSync(filePaths[0], 'utf8');
+  const obj = JSON.parse(content);
+  await db.replaceDb(obj);
+  return { ok: true };
 });
 
 app.whenReady().then(() => {

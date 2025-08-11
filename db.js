@@ -23,10 +23,14 @@ function hashId(input) {
   return crypto.createHash('sha256').update(input).digest('hex').slice(0, 16);
 }
 
+function defaultDb() {
+  return { streets: [], houseNumbers: {}, notes: [] };
+}
+
 function readDb() {
   ensureDirs();
   if (!fs.existsSync(dbFile)) {
-    const init = { streets: [], houseNumbers: {}, notes: [] };
+    const init = defaultDb();
     fs.writeFileSync(dbFile, JSON.stringify(init, null, 2));
     return init;
   }
@@ -38,7 +42,7 @@ function readDb() {
     if (!parsed.notes) parsed.notes = [];
     return parsed;
   } catch {
-    const init = { streets: [], houseNumbers: {}, notes: [] };
+    const init = defaultDb();
     fs.writeFileSync(dbFile, JSON.stringify(init, null, 2));
     return init;
   }
@@ -47,6 +51,50 @@ function readDb() {
 async function writeDb(db) {
   ensureDirs();
   await fsp.writeFile(dbFile, JSON.stringify(db, null, 2), 'utf8');
+}
+
+function validateAndNormalizeDb(obj) {
+  if (typeof obj !== 'object' || obj === null) throw new Error('Invalid DB format');
+  const clone = { streets: [], houseNumbers: {}, notes: [] };
+  const streets = Array.isArray(obj.streets) ? obj.streets : [];
+  for (const s of streets) {
+    if (!s || typeof s !== 'object') continue;
+    const name = String(s.name || '').trim();
+    const municipality = String(s.municipality || '').trim();
+    const start = s.start === null || s.start === undefined || s.start === '' ? null : Number(s.start);
+    const end = s.end === null || s.end === undefined || s.end === '' ? null : Number(s.end);
+    const interval = ['all', 'even', 'odd'].includes(s.interval) ? s.interval : 'all';
+    if (!name || !municipality) continue;
+    const id = String(s.id || '').trim() || hashId(`${municipality}|${name}|${start ?? ''}|${end ?? ''}|${interval}`);
+    clone.streets.push({ id, name, municipality, start, end, interval });
+  }
+  const hn = obj.houseNumbers && typeof obj.houseNumbers === 'object' ? obj.houseNumbers : {};
+  for (const [k, v] of Object.entries(hn)) {
+    const arr = Array.isArray(v) ? v : [];
+    clone.houseNumbers[k] = Array.from(new Set(arr.map(Number).filter(n => Number.isInteger(n)))).sort((a, b) => a - b);
+  }
+  const notes = Array.isArray(obj.notes) ? obj.notes : [];
+  for (const n of notes) {
+    if (!n || typeof n !== 'object') continue;
+    const id = String(n.id || '').trim() || hashId(`${n.streetId}|${n.number}|${n.text}|${n.created_at || ''}`);
+    const streetId = String(n.streetId || '').trim();
+    const number = Number(n.number);
+    const text = String(n.text || '').trim();
+    const created_at = n.created_at ? new Date(n.created_at).toISOString() : new Date().toISOString();
+    if (!streetId || !Number.isInteger(number) || !text) continue;
+    clone.notes.push({ id, streetId, number, text, created_at });
+  }
+  return clone;
+}
+
+function getRawDb() {
+  return readDb();
+}
+
+async function replaceDb(rawObj) {
+  const normalized = validateAndNormalizeDb(rawObj);
+  await writeDb(normalized);
+  return true;
 }
 
 function streetKey(s) {
@@ -80,7 +128,6 @@ function listMunicipalitiesWithStreets() {
       municipality: s.municipality,
     });
   }
-  // sort
   for (const muni of Object.keys(grouped)) {
     grouped[muni].sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -121,6 +168,10 @@ function deleteNote(noteId) {
 }
 
 module.exports = {
+  // raw access
+  getRawDb,
+  replaceDb,
+  // streets / numbers / notes
   upsertStreet,
   listMunicipalitiesWithStreets,
   setHouseNumbers,

@@ -18,6 +18,7 @@ body {
   overflow-y: auto;
   border-right: 1px solid #ccc;
   height: 100vh;
+  box-sizing: border-box;
 }
 
 #main {
@@ -246,4 +247,55 @@ h1 {
 
 .note-add-button:hover {
   background: #ffe082;
+}
+
+.add-street-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+  width: 100%;
+}
+.add-street-form input,
+.add-street-form select {
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.add-street-form button {
+  grid-column: 1 / -1;
+  padding: 8px;
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.add-street-form button:hover {
+  background: #1565c0;
+}
+
+#street-name,
+#street-municipality,
+#street-interval,
+.add-street-form button {
+  grid-column: 1 / -1;
+}
+
+.db-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.db-actions button {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+  cursor: pointer;
+}
+.db-actions button:hover {
+  background: #f0f0f0;
 }
