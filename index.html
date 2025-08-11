@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leaflet Delivery Helper</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div id="sidebar">
+      <h1>Streets</h1>
+      <div id="street-list"></div>
+    </div>
+    <div id="main">
+      <h1>Leaflet Delivery Helper</h1>
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <div id="note-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <h2 id="modal-title">Notes</h2>
+      <div id="note-list"></div>
+      <input type="text" id="add-note-input" placeholder="New note..." />
+      <button id="add-note-button">Add Note</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
