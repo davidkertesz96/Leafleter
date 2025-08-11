@@ -10,7 +10,7 @@ const initialStreets = [
 const map = L.map('map').setView([48.104, 20.791], 13); // Default center 48.10431500688287, 20.791225448873913
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors'
+  attribution: '© OpenStreetMap közreműködők'
 }).addTo(map);
 
 // Track currently selected marker
@@ -32,7 +32,7 @@ async function geocodeStreet(street, municipality) {
     return geocodeCache[key];
   }
   const url = `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(street)}&city=${encodeURIComponent(municipality)}&format=json&limit=1`;
-  const response = await fetch(url, { headers: { 'Accept-Language': 'en' }, method: 'GET' });
+  const response = await fetch(url, { headers: { 'Accept-Language': 'hu' }, method: 'GET' });
   const data = await response.json();
   if (data && data.length > 0) {
     const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
@@ -47,7 +47,7 @@ async function geocodeAddress(street, number, municipality) {
   const key = `${number} ${street},${municipality}`;
   if (addressGeocodeCache[key]) return addressGeocodeCache[key];
   const url = `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(`${number} ${street}`)}&city=${encodeURIComponent(municipality)}&format=json&limit=1`;
-  const response = await fetch(url, { headers: { 'Accept-Language': 'en' }, method: 'GET' });
+  const response = await fetch(url, { headers: { 'Accept-Language': 'hu' }, method: 'GET' });
   const data = await response.json();
   if (data && data.length > 0) {
     const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
@@ -105,7 +105,7 @@ async function showNoteDropdown(streetObj, number, houseSpan) {
   // Header
   const header = document.createElement('div');
   header.className = 'note-dropdown-header';
-  header.textContent = `Notes for ${streetObj.name} ${number}`;
+  header.textContent = `Jegyzetek: ${streetObj.name} ${number}`;
   dropdown.appendChild(header);
 
   // Notes list
@@ -116,12 +116,12 @@ async function showNoteDropdown(streetObj, number, houseSpan) {
   // Input and button
   const input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'New note...';
+  input.placeholder = 'Új jegyzet...';
   input.className = 'note-input';
   dropdown.appendChild(input);
 
   const button = document.createElement('button');
-  button.textContent = 'Add Note';
+  button.textContent = 'Jegyzet hozzáadása';
   button.className = 'note-add-button';
   dropdown.appendChild(button);
 
@@ -295,16 +295,16 @@ async function loadStreets() {
           let manualMode = false;
           header.addEventListener('click', async () => {
             if (!fetched && !manualMode) {
-              houseList.innerHTML = '<span style="color:#888">Loading house numbers from OSM...</span>';
+              houseList.innerHTML = '<span style="color:#888">Házszámok betöltése OSM-ből...</span>';
               const nums = await fetchHouseNumbersFromOSM(street.name, street.municipality);
               houseList.innerHTML = '';
               if (nums.length === 0) {
                 const msg = document.createElement('span');
                 msg.style.color = '#888';
-                msg.textContent = 'No house numbers found in OSM.';
+                msg.textContent = 'Nem található házszám az OSM-ben.';
                 houseList.appendChild(msg);
                 const manualBtn = document.createElement('button');
-                manualBtn.textContent = 'Manual Entry';
+                manualBtn.textContent = 'Kézi megadás';
                 manualBtn.className = 'manual-entry-btn';
                 manualBtn.style.marginLeft = '10px';
                 manualBtn.onclick = () => {
@@ -314,9 +314,9 @@ async function loadStreets() {
                   const form = document.createElement('div');
                   form.className = 'manual-entry-form';
                   form.innerHTML = `
-                    <label>Start: <input type='number' class='manual-start' style='width:60px;'></label>
-                    <label>End: <input type='number' class='manual-end' style='width:60px;'></label>
-                    <button class='manual-apply'>Apply</button>
+                    <label>Kezdő: <input type='number' class='manual-start' style='width:60px;'></label>
+                    <label>Vég: <input type='number' class='manual-end' style='width:60px;'></label>
+                    <button class='manual-apply'>Alkalmaz</button>
                   `;
                   houseList.appendChild(form);
                   form.querySelector('.manual-apply').onclick = async (e) => {
@@ -332,7 +332,7 @@ async function loadStreets() {
                       }
                       await window.api.setHouseNumbers(street.id, manualNums);
                     } else {
-                      alert('Please enter valid start and end numbers.');
+                      alert('Adj meg érvényes kezdő és vég értékeket.');
                     }
                   };
                 };
@@ -383,7 +383,7 @@ async function loadStreets() {
       form.reset();
       await loadStreets();
     } catch (err) {
-      alert(err.message || 'Failed to add street');
+      alert(err.message || 'Utca hozzáadása sikertelen');
     }
   });
 })();
@@ -396,7 +396,7 @@ async function loadStreets() {
     exportBtn.addEventListener('click', async () => {
       const res = await window.api.exportDb();
       if (res && res.ok) {
-        alert('Exported to: ' + res.filePath);
+        alert('Exportálva ide: ' + res.filePath);
       }
     });
   }
@@ -406,10 +406,10 @@ async function loadStreets() {
         const res = await window.api.importDb();
         if (res && res.ok) {
           await loadStreets();
-          alert('Import completed');
+          alert('Importálás kész');
         }
       } catch (e) {
-        alert('Import failed: ' + (e.message || 'Unknown error'));
+        alert('Importálás sikertelen: ' + (e.message || 'Ismeretlen hiba'));
       }
     });
   }

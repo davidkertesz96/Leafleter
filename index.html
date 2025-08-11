@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hu">
 <head>
   <meta charset="UTF-8" />
-  <title>Leaflet Delivery Helper</title>
+  <title>Leaflet kézbesítési segéd</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -10,37 +10,37 @@
 <body>
   <div id="app">
     <div id="sidebar">
-      <h1>Streets</h1>
+      <h1>Utcák</h1>
       <div class="db-actions">
-        <button id="export-db">Export DB</button>
-        <button id="import-db">Import DB</button>
+        <button id="export-db">Adatbázis exportálása</button>
+        <button id="import-db">Adatbázis importálása</button>
       </div>
       <form id="add-street-form" class="add-street-form">
-        <input type="text" id="street-name" placeholder="Street name" required />
-        <input type="text" id="street-municipality" placeholder="Municipality" required />
-        <input type="number" id="street-start" placeholder="Start (optional)" />
-        <input type="number" id="street-end" placeholder="End (optional)" />
+        <input type="text" id="street-name" placeholder="Utca neve" required />
+        <input type="text" id="street-municipality" placeholder="Település" required />
+        <input type="number" id="street-start" placeholder="Kezdő házszám (opcionális)" />
+        <input type="number" id="street-end" placeholder="Utolsó házszám (opcionális)" />
         <select id="street-interval">
-          <option value="all">All</option>
-          <option value="even">Even</option>
-          <option value="odd">Odd</option>
+          <option value="all">Mind</option>
+          <option value="even">Páros</option>
+          <option value="odd">Páratlan</option>
         </select>
-        <button type="submit">Add Street</button>
+        <button type="submit">Utca hozzáadása</button>
       </form>
       <div id="street-list"></div>
     </div>
     <div id="main">
-      <h1>Leaflet Delivery Helper</h1>
+      <h1>Leaflet kézbesítési segéd</h1>
       <div id="map"></div>
     </div>
   </div>
 
   <div id="note-modal" class="modal" style="display: none;">
     <div class="modal-content">
-      <h2 id="modal-title">Notes</h2>
+      <h2 id="modal-title">Jegyzetek</h2>
       <div id="note-list"></div>
-      <input type="text" id="add-note-input" placeholder="New note..." />
-      <button id="add-note-button">Add Note</button>
+      <input type="text" id="add-note-input" placeholder="Új jegyzet..." />
+      <button id="add-note-button">Jegyzet hozzáadása</button>
     </div>
   </div>
 
