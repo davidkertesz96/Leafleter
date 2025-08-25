@@ -163,13 +163,43 @@ async function showNoteDropdown(streetObj, number, houseSpan) {
   houseSpan.parentNode.insertBefore(dropdown, houseSpan.nextSibling);
 }
 
+// Shared: robust Overpass fetch with fallback endpoints and JSON validation
+async function overpassJson(query) {
+  const endpoints = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+  ];
+  let lastText = '';
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, { method: 'POST', body: query, headers: { 'Content-Type': 'text/plain' } });
+      const ct = res.headers.get('content-type') || '';
+      if (!res.ok) {
+        lastText = await res.text();
+        continue;
+      }
+      if (!ct.includes('application/json')) {
+        lastText = await res.text();
+        continue;
+      }
+      return await res.json();
+    } catch (e) {
+      lastText = e.message || String(e);
+      continue;
+    }
+  }
+  throw new Error('Overpass válasz nem JSON: ' + (lastText || 'Ismeretlen hiba'));
+}
+
+// Small delay helper to avoid hammering Overpass
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 // Fetch house numbers from Overpass API
 async function fetchHouseNumbersFromOSM(street, municipality) {
   const key = `${street},${municipality}`;
   if (houseNumberCache[key]) {
     return houseNumberCache[key];
   }
-  // Overpass QL query (try to match addr:city as well)
   const query = `
     [out:json][timeout:25];
     (
@@ -182,26 +212,90 @@ async function fetchHouseNumbersFromOSM(street, municipality) {
     );
     out body;
   `;
-  const url = 'https://overpass-api.de/api/interpreter';
-  const response = await fetch(url, {
-    method: 'POST',
-    body: query,
-    headers: { 'Content-Type': 'text/plain' }
-  });
-  const data = await response.json();
+  const data = await overpassJson(query);
   const numbers = new Set();
   if (data.elements) {
     data.elements.forEach(el => {
-      if (el.tags && el.tags['addr:housenumber']) {
-        numbers.add(el.tags['addr:housenumber']);
-      }
+      if (el.tags && el.tags['addr:housenumber']) numbers.add(el.tags['addr:housenumber']);
     });
   }
-  // Only keep numbers that are valid integers
   const sorted = Array.from(numbers).filter(n => /^\d+$/.test(n)).map(Number).sort((a, b) => a - b);
   houseNumberCache[key] = sorted;
   return sorted;
 }
+
+// Fetch all streets for a municipality from Overpass API
+async function fetchStreetsForMunicipality(municipality) {
+  const query = `
+    [out:json][timeout:25];
+    area["name"="${municipality}"]["boundary"="administrative"]["admin_level"~"^(8|9|10)$"]->.a;
+    (
+      way["highway"]["name"](area.a);
+    );
+    out tags;
+  `;
+  const data = await overpassJson(query);
+  const names = new Set();
+  if (data.elements) {
+    for (const el of data.elements) {
+      if (el.tags && el.tags.name) names.add(el.tags.name);
+    }
+  }
+  return Array.from(names).sort((a,b) => a.localeCompare(b));
+}
+
+// Bind OSM municipality import modal
+(function bindOsmImportModal() {
+  const openBtn = document.getElementById('osm-import');
+  const modal = document.getElementById('osm-import-modal');
+  if (!openBtn || !modal) return;
+  const input = document.getElementById('osm-municipality');
+  const includeNumbers = document.getElementById('osm-include-numbers');
+  const startBtn = document.getElementById('osm-start-import');
+  const cancelBtn = document.getElementById('osm-cancel-import');
+  const statusEl = document.getElementById('osm-import-status');
+
+  function open() { modal.style.display = 'flex'; statusEl.textContent = ''; }
+  function close() { modal.style.display = 'none'; }
+
+  openBtn.addEventListener('click', () => open());
+  cancelBtn.addEventListener('click', () => close());
+
+  startBtn.addEventListener('click', async () => {
+    const muni = (input.value || '').trim();
+    if (!muni) { statusEl.textContent = 'Adj meg egy települést.'; return; }
+    startBtn.disabled = true; cancelBtn.disabled = true; input.disabled = true; includeNumbers.disabled = true;
+    try {
+      statusEl.textContent = 'Utcák lekérése OSM-ből...';
+      const streets = await fetchStreetsForMunicipality(muni);
+      statusEl.textContent = `${streets.length} utca találva. Mentés...`;
+      let idx = 0;
+      for (const name of streets) {
+        idx++;
+        statusEl.textContent = `(${idx}/${streets.length}) ${name}`;
+        const res = await window.api.addStreet({ name, municipality: muni, start: null, end: null, interval: 'all' });
+        const streetId = res && res.id ? res.id : undefined;
+        if (includeNumbers.checked && streetId) {
+          try {
+            const nums = await fetchHouseNumbersFromOSM(name, muni);
+            if (nums.length > 0) await window.api.setHouseNumbers(streetId, nums);
+            // be polite to Overpass
+            await delay(600);
+          } catch (e) {
+            // continue with next street
+          }
+        }
+      }
+      await loadStreets();
+      statusEl.textContent = 'Kész.';
+      setTimeout(() => close(), 600);
+    } catch (e) {
+      statusEl.textContent = 'Hiba: ' + (e.message || 'Ismeretlen');
+    } finally {
+      startBtn.disabled = false; cancelBtn.disabled = false; input.disabled = false; includeNumbers.disabled = false;
+    }
+  });
+})();
 
 async function loadStreets() {
   // Seed initial streets (idempotent via upsert)

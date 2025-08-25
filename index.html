@@ -14,6 +14,7 @@
       <div class="db-actions">
         <button id="export-db">Adatbázis exportálása</button>
         <button id="import-db">Adatbázis importálása</button>
+        <button id="osm-import">OSM település import</button>
       </div>
       <form id="add-street-form" class="add-street-form">
         <input type="text" id="street-name" placeholder="Utca neve" required />
@@ -41,6 +42,23 @@
       <div id="note-list"></div>
       <input type="text" id="add-note-input" placeholder="Új jegyzet..." />
       <button id="add-note-button">Jegyzet hozzáadása</button>
+    </div>
+  </div>
+
+  <div id="osm-import-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <h2>Település importálása OSM-ből</h2>
+      <div style="margin-bottom:8px;">
+        <input type="text" id="osm-municipality" placeholder="Település neve (pl. Miskolc)" />
+      </div>
+      <div style="margin-bottom:8px;">
+        <label><input type="checkbox" id="osm-include-numbers" checked /> Házszámok importálása is</label>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button id="osm-start-import">Indítás</button>
+        <button id="osm-cancel-import">Mégse</button>
+      </div>
+      <div id="osm-import-status" style="margin-top:10px; color:#555;"></div>
     </div>
   </div>
 
