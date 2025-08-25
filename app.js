@@ -25,6 +25,20 @@ const addressGeocodeCache = {};
 // Overpass API cache
 const houseNumberCache = {};
 
+// Compute a readable text color (black/white) for a given background hex color
+function getReadableTextColor(hexColor) {
+  if (!hexColor || typeof hexColor !== 'string') return '#000';
+  let c = hexColor.trim();
+  if (c.startsWith('#')) c = c.slice(1);
+  if (c.length === 3) c = c.split('').map(ch => ch + ch).join('');
+  const r = parseInt(c.slice(0, 2), 16) || 0;
+  const g = parseInt(c.slice(2, 4), 16) || 0;
+  const b = parseInt(c.slice(4, 6), 16) || 0;
+  // Luminance formula
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#000' : '#fff';
+}
+
 // Geocode function using Nominatim
 async function geocodeStreet(street, municipality) {
   const key = `${street},${municipality}`;
@@ -254,6 +268,8 @@ async function fetchStreetsForMunicipality(municipality) {
   const startBtn = document.getElementById('osm-start-import');
   const cancelBtn = document.getElementById('osm-cancel-import');
   const statusEl = document.getElementById('osm-import-status');
+  // close by clicking overlay
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
 
   function open() { modal.style.display = 'flex'; statusEl.textContent = ''; }
   function close() { modal.style.display = 'none'; }
@@ -340,7 +356,83 @@ async function loadStreets() {
       } else if (typeof street.start === 'number' && street.start === street.end) {
         rangeText = ` (${street.start})`;
       }
-      header.textContent = street.name + rangeText;
+      // Header content container
+      header.innerHTML = '';
+      const titleSpan = document.createElement('span');
+      titleSpan.textContent = street.name + rangeText;
+      header.appendChild(titleSpan);
+
+      // Sector selection button
+      const sectorBtn = document.createElement('button');
+      sectorBtn.className = 'sector-btn';
+      sectorBtn.textContent = 'Szekció';
+      header.appendChild(sectorBtn);
+
+      async function refreshSectorOptions() {
+        const sectors = await window.api.listSectors();
+        const current = await window.api.getStreetSector(street.id);
+        // Apply header color by sector
+        const selected = sectors.find(s => s.id === current);
+        const color = selected && selected.color ? selected.color : '';
+        if (color) {
+          header.style.background = color;
+          header.style.color = getReadableTextColor(color);
+        } else {
+          header.style.background = '';
+          header.style.color = '';
+        }
+      }
+      refreshSectorOptions();
+      // Listen for sector updates to refresh options live
+      document.addEventListener('sectors:updated', refreshSectorOptions);
+
+      // Open assign-sector modal
+      sectorBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const modal = document.getElementById('assign-sector-modal');
+        const list = document.getElementById('assign-sector-list');
+        const closeBtn = document.getElementById('assign-sector-close');
+        if (!modal) return;
+        const sectors = await window.api.listSectors();
+        const current = await window.api.getStreetSector(street.id);
+        list.innerHTML = '';
+        const noneRow = document.createElement('button');
+        noneRow.textContent = '— Nincs szekció —';
+        noneRow.style.textAlign = 'left';
+        noneRow.style.padding = '6px 8px';
+        noneRow.style.border = '1px solid #ddd';
+        noneRow.style.borderRadius = '4px';
+        noneRow.style.background = !current ? '#eef5ff' : '#fff';
+        noneRow.onclick = async () => { await window.api.assignSector(street.id, null); modal.style.display = 'none'; await refreshSectorOptions(); };
+        list.appendChild(noneRow);
+        sectors.forEach(s => {
+          const btn = document.createElement('button');
+          btn.style.display = 'flex';
+          btn.style.alignItems = 'center';
+          btn.style.gap = '8px';
+          btn.style.padding = '6px 8px';
+          btn.style.border = '1px solid #ddd';
+          btn.style.borderRadius = '4px';
+          btn.style.cursor = 'pointer';
+          btn.style.background = current === s.id ? '#eef5ff' : '#fff';
+          const swatch = document.createElement('span');
+          swatch.style.display = 'inline-block';
+          swatch.style.width = '12px';
+          swatch.style.height = '12px';
+          swatch.style.borderRadius = '3px';
+          swatch.style.background = s.color || '#ccc';
+          const label = document.createElement('span');
+          label.textContent = s.name;
+          btn.appendChild(swatch);
+          btn.appendChild(label);
+          btn.onclick = async () => { await window.api.assignSector(street.id, s.id); modal.style.display = 'none'; await refreshSectorOptions(); };
+          list.appendChild(btn);
+        });
+        const overlayClose = (ev) => { if (ev.target === modal) modal.style.display = 'none'; };
+        modal.addEventListener('click', overlayClose, { once: true });
+        closeBtn.onclick = () => { modal.style.display = 'none'; };
+        modal.style.display = 'flex';
+      });
       header.style.cursor = 'pointer';
 
       const houseList = document.createElement('div');
@@ -441,12 +533,65 @@ async function loadStreets() {
         }
       })();
 
-      // Toggle house list on header click
-      header.addEventListener('click', () => {
-        houseList.style.display = houseList.style.display === 'flex' ? 'none' : 'flex';
+      // remove: handled by unified toggle below
+
+      // Street-level notes UI
+      const streetNotesContainer = document.createElement('div');
+      streetNotesContainer.className = 'note-dropdown-inline';
+      streetNotesContainer.style.display = 'none';
+      const snHeader = document.createElement('div');
+      snHeader.className = 'note-dropdown-header';
+      snHeader.textContent = 'Utca megjegyzések';
+      const snList = document.createElement('div');
+      snList.className = 'note-list';
+      const snInput = document.createElement('input');
+      snInput.type = 'text';
+      snInput.placeholder = 'Új megjegyzés az utcához...';
+      snInput.className = 'note-input';
+      const snAdd = document.createElement('button');
+      snAdd.className = 'note-add-button';
+      snAdd.textContent = 'Hozzáadás';
+
+      streetNotesContainer.appendChild(snHeader);
+      streetNotesContainer.appendChild(snList);
+      streetNotesContainer.appendChild(snInput);
+      streetNotesContainer.appendChild(snAdd);
+
+      async function renderStreetNotes() {
+        const notes = await window.api.listStreetNotes(street.id);
+        snList.innerHTML = '';
+        notes.forEach(note => {
+          const div = document.createElement('div');
+          div.className = 'note';
+          const text = document.createElement('span');
+          text.textContent = note.text;
+          const del = document.createElement('button');
+          del.textContent = 'X';
+          del.onclick = async () => { await window.api.deleteStreetNote(note.id); await renderStreetNotes(); };
+          div.appendChild(text);
+          div.appendChild(del);
+          snList.appendChild(div);
+        });
+      }
+      renderStreetNotes();
+
+      snAdd.onclick = async () => {
+        const val = snInput.value.trim();
+        if (!val) return;
+        await window.api.addStreetNote(street.id, val);
+        snInput.value = '';
+        await renderStreetNotes();
+      };
+
+      // Toggle notes and house numbers on header click
+      header.addEventListener('click', (e) => {
+        const opened = houseList.style.display === 'flex';
+        houseList.style.display = opened ? 'none' : 'flex';
+        streetNotesContainer.style.display = opened ? 'none' : 'block';
       });
 
       block.appendChild(header);
+      block.appendChild(streetNotesContainer);
       block.appendChild(houseList);
       muniContent.appendChild(block);
     });
@@ -486,6 +631,14 @@ async function loadStreets() {
 (function bindExportImport() {
   const exportBtn = document.getElementById('export-db');
   const importBtn = document.getElementById('import-db');
+  const manageSectorsBtn = document.getElementById('manage-sectors');
+  // close open modals on Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modals = document.querySelectorAll('.modal');
+      modals.forEach(m => m.style.display = 'none');
+    }
+  });
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
       const res = await window.api.exportDb();
@@ -505,6 +658,62 @@ async function loadStreets() {
       } catch (e) {
         alert('Importálás sikertelen: ' + (e.message || 'Ismeretlen hiba'));
       }
+    });
+  }
+  if (manageSectorsBtn) {
+    manageSectorsBtn.addEventListener('click', () => {
+      const modal = document.getElementById('sectors-modal');
+      const list = document.getElementById('sectors-list');
+      const addBtn = document.getElementById('sector-add');
+      const closeBtn = document.getElementById('sectors-close');
+      const nameInput = document.getElementById('sector-name');
+      const noteInput = document.getElementById('sector-note');
+      const colorInput = document.getElementById('sector-color');
+      if (!modal) return;
+      modal.style.display = 'flex';
+
+      async function renderSectors() {
+        const sectors = await window.api.listSectors();
+        list.innerHTML = '';
+        sectors.forEach(s => {
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.justifyContent = 'space-between';
+          row.style.gap = '8px';
+          const left = document.createElement('div');
+          left.textContent = s.name + (s.note ? ` — ${s.note}` : '');
+          if (s.color) {
+            left.style.padding = '2px 6px';
+            left.style.borderRadius = '4px';
+            left.style.background = s.color;
+            left.style.color = getReadableTextColor(s.color);
+          }
+          const del = document.createElement('button');
+          del.textContent = 'Törlés';
+          del.onclick = async () => { await window.api.deleteSector(s.id); await renderSectors(); };
+          row.appendChild(left);
+          row.appendChild(del);
+          list.appendChild(row);
+        });
+        document.dispatchEvent(new CustomEvent('sectors:updated'));
+      }
+      renderSectors();
+
+      addBtn.onclick = async () => {
+        const name = nameInput.value.trim();
+        const note = noteInput.value.trim();
+        const color = colorInput && colorInput.value ? colorInput.value : '';
+        if (!name) return;
+        await window.api.addSector(name, note, color);
+        nameInput.value = '';
+        noteInput.value = '';
+        if (colorInput) colorInput.value = color || '#1976d2';
+        await renderSectors();
+      };
+
+      closeBtn.onclick = () => { modal.style.display = 'none'; };
+      modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
     });
   }
 })();

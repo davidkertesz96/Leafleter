@@ -63,6 +63,18 @@ h1 {
   background: #ddd;
   font-weight: bold;
 }
+.street-header .sector-btn {
+  float: right;
+  font-size: 0.85em;
+  padding: 2px 8px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+.street-header .sector-btn:hover {
+  background: #f5f5f5;
+}
 
 .house-numbers {
   padding: 10px;
@@ -109,7 +121,7 @@ h1 {
 .modal-content {
   background: white;
   padding: 20px;
-  width: 300px;
+  width: auto;
   max-height: 80%;
   overflow-y: auto;
   border-radius: 8px;
@@ -298,4 +310,13 @@ h1 {
 }
 .db-actions button:hover {
   background: #f0f0f0;
+}
+
+/* Improve select layout in street headers */
+.street-header select {
+  font-size: 0.9em;
+  padding: 2px 6px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
 }

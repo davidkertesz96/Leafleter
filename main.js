@@ -70,6 +70,45 @@ ipcMain.handle('db:deleteNote', async (_evt, noteId) => {
   return true;
 });
 
+// IPC: Street-level notes
+ipcMain.handle('db:listStreetNotes', async (_evt, streetId) => {
+  return db.listStreetNotes(streetId);
+});
+
+ipcMain.handle('db:addStreetNote', async (_evt, streetId, text) => {
+  const id = db.addStreetNote(streetId, text);
+  return { id };
+});
+
+ipcMain.handle('db:deleteStreetNote', async (_evt, noteId) => {
+  db.deleteStreetNote(noteId);
+  return true;
+});
+
+// IPC: Sectors
+ipcMain.handle('db:listSectors', async () => {
+  return db.listSectors();
+});
+
+ipcMain.handle('db:addSector', async (_evt, name, note, color) => {
+  const id = db.addSector(name, note, color);
+  return { id };
+});
+
+ipcMain.handle('db:deleteSector', async (_evt, sectorId) => {
+  db.deleteSector(sectorId);
+  return true;
+});
+
+ipcMain.handle('db:assignSector', async (_evt, streetId, sectorIdOrNull) => {
+  db.assignSector(streetId, sectorIdOrNull || null);
+  return true;
+});
+
+ipcMain.handle('db:getStreetSector', async (_evt, streetId) => {
+  return db.getStreetSector(streetId);
+});
+
 // IPC: Export/Import
 ipcMain.handle('db:export', async (evt) => {
   const win = BrowserWindow.fromWebContents(evt.sender);

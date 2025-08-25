@@ -11,4 +11,14 @@ contextBridge.exposeInMainWorld('api', {
   deleteNote: (noteId) => ipcRenderer.invoke('db:deleteNote', noteId),
   exportDb: () => ipcRenderer.invoke('db:export'),
   importDb: () => ipcRenderer.invoke('db:import'),
+  // street-level notes
+  listStreetNotes: (streetId) => ipcRenderer.invoke('db:listStreetNotes', streetId),
+  addStreetNote: (streetId, text) => ipcRenderer.invoke('db:addStreetNote', streetId, text),
+  deleteStreetNote: (noteId) => ipcRenderer.invoke('db:deleteStreetNote', noteId),
+  // sectors
+  listSectors: () => ipcRenderer.invoke('db:listSectors'),
+  addSector: (name, note, color) => ipcRenderer.invoke('db:addSector', name, note, color),
+  deleteSector: (sectorId) => ipcRenderer.invoke('db:deleteSector', sectorId),
+  assignSector: (streetId, sectorIdOrNull) => ipcRenderer.invoke('db:assignSector', streetId, sectorIdOrNull),
+  getStreetSector: (streetId) => ipcRenderer.invoke('db:getStreetSector', streetId),
 }); 

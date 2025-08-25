@@ -24,7 +24,7 @@ function hashId(input) {
 }
 
 function defaultDb() {
-  return { streets: [], houseNumbers: {}, notes: [] };
+  return { streets: [], houseNumbers: {}, notes: [], streetNotes: [], sectors: [], streetSectors: {} };
 }
 
 function readDb() {
@@ -40,6 +40,9 @@ function readDb() {
     if (!parsed.streets) parsed.streets = [];
     if (!parsed.houseNumbers) parsed.houseNumbers = {};
     if (!parsed.notes) parsed.notes = [];
+    if (!parsed.streetNotes) parsed.streetNotes = [];
+    if (!parsed.sectors) parsed.sectors = [];
+    if (!parsed.streetSectors) parsed.streetSectors = {};
     return parsed;
   } catch {
     const init = defaultDb();
@@ -55,7 +58,7 @@ async function writeDb(db) {
 
 function validateAndNormalizeDb(obj) {
   if (typeof obj !== 'object' || obj === null) throw new Error('Invalid DB format');
-  const clone = { streets: [], houseNumbers: {}, notes: [] };
+  const clone = { streets: [], houseNumbers: {}, notes: [], streetNotes: [], sectors: [], streetSectors: {} };
   const streets = Array.isArray(obj.streets) ? obj.streets : [];
   for (const s of streets) {
     if (!s || typeof s !== 'object') continue;
@@ -83,6 +86,33 @@ function validateAndNormalizeDb(obj) {
     const created_at = n.created_at ? new Date(n.created_at).toISOString() : new Date().toISOString();
     if (!streetId || !Number.isInteger(number) || !text) continue;
     clone.notes.push({ id, streetId, number, text, created_at });
+  }
+  const streetNotes = Array.isArray(obj.streetNotes) ? obj.streetNotes : [];
+  for (const n of streetNotes) {
+    if (!n || typeof n !== 'object') continue;
+    const id = String(n.id || '').trim() || hashId(`${n.streetId}|${n.text}|${n.created_at || ''}`);
+    const streetId = String(n.streetId || '').trim();
+    const text = String(n.text || '').trim();
+    const created_at = n.created_at ? new Date(n.created_at).toISOString() : new Date().toISOString();
+    if (!streetId || !text) continue;
+    clone.streetNotes.push({ id, streetId, text, created_at });
+  }
+  const sectors = Array.isArray(obj.sectors) ? obj.sectors : [];
+  const sectorIds = new Set();
+  for (const s of sectors) {
+    if (!s || typeof s !== 'object') continue;
+    const name = String(s.name || '').trim();
+    const note = String(s.note || '').trim();
+    const color = String(s.color || '').trim();
+    if (!name) continue;
+    const id = String(s.id || '').trim() || hashId(`sector|${name}|${note}`);
+    sectorIds.add(id);
+    clone.sectors.push({ id, name, note, color });
+  }
+  const ss = obj.streetSectors && typeof obj.streetSectors === 'object' ? obj.streetSectors : {};
+  for (const [streetId, sectorId] of Object.entries(ss)) {
+    if (typeof streetId !== 'string') continue;
+    if (sectorId && sectorIds.has(String(sectorId))) clone.streetSectors[streetId] = String(sectorId);
   }
   return clone;
 }
@@ -167,6 +197,80 @@ function deleteNote(noteId) {
   }
 }
 
+function listStreetNotes(streetId) {
+  const db = readDb();
+  return db.streetNotes.filter(n => n.streetId === streetId);
+}
+
+function addStreetNote(streetId, text) {
+  const db = readDb();
+  const id = hashId(`${streetId}|${text}|${Date.now()}`);
+  db.streetNotes.push({ id, streetId, text, created_at: new Date().toISOString() });
+  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+  return id;
+}
+
+function deleteStreetNote(noteId) {
+  const db = readDb();
+  const before = db.streetNotes.length;
+  db.streetNotes = db.streetNotes.filter(n => n.id !== noteId);
+  if (db.streetNotes.length !== before) {
+    fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+  }
+}
+
+function listSectors() {
+  const db = readDb();
+  return db.sectors;
+}
+
+function addSector(name, note = '', color = '') {
+  const db = readDb();
+  const normalizedName = String(name || '').trim();
+  const normalizedNote = String(note || '').trim();
+  const normalizedColor = String(color || '').trim();
+  if (!normalizedName) throw new Error('Sector name required');
+  const id = hashId(`sector|${normalizedName}|${normalizedNote}`);
+  const existing = db.sectors.find(s => s.id === id);
+  if (!existing) {
+    db.sectors.push({ id, name: normalizedName, note: normalizedNote, color: normalizedColor });
+  } else {
+    existing.name = normalizedName;
+    existing.note = normalizedNote;
+    existing.color = normalizedColor;
+  }
+  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+  return id;
+}
+
+function deleteSector(id) {
+  const db = readDb();
+  const prevLen = db.sectors.length;
+  db.sectors = db.sectors.filter(s => s.id !== id);
+  // Remove assignments to this sector
+  for (const sid of Object.keys(db.streetSectors)) {
+    if (db.streetSectors[sid] === id) delete db.streetSectors[sid];
+  }
+  if (db.sectors.length !== prevLen) fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+}
+
+function assignSector(streetId, sectorId) {
+  const db = readDb();
+  if (sectorId) {
+    // ensure sector exists
+    if (!db.sectors.find(s => s.id === sectorId)) throw new Error('Sector not found');
+    db.streetSectors[streetId] = sectorId;
+  } else {
+    delete db.streetSectors[streetId];
+  }
+  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+}
+
+function getStreetSector(streetId) {
+  const db = readDb();
+  return db.streetSectors[streetId] || null;
+}
+
 module.exports = {
   // raw access
   getRawDb,
@@ -179,4 +283,14 @@ module.exports = {
   listNotes,
   addNote,
   deleteNote,
+  // street-level notes
+  listStreetNotes,
+  addStreetNote,
+  deleteStreetNote,
+  // sectors
+  listSectors,
+  addSector,
+  deleteSector,
+  assignSector,
+  getStreetSector,
 }; 
